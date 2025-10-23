@@ -11,7 +11,7 @@ use crate::{DeviceId, DeviceKind, StorageDevice, StorageEvent, StorageVolume, Vo
 use anyhow::Context;
 use libc::c_void;
 use objc2_core_foundation::{
-    CFBoolean, CFDictionary, CFNumber, CFRetained, CFRunLoop, CFString, CFURL, CFUUID, Type,
+    CFBoolean, CFDictionary, CFNumber, CFRetained, CFRunLoop, CFString, CFURL, CFUUID,
     kCFRunLoopDefaultMode,
 };
 use objc2_disk_arbitration::{
@@ -38,12 +38,7 @@ pub fn get_devices() -> anyhow::Result<(Vec<StorageDevice>, Vec<StorageVolume>)>
 
     // Get list of mounted volumes using getfsstat
     let mut fsstat = Vec::new();
-    let mut buf_size = 0;
-
-    // First call to get required buffer size
-    unsafe {
-        buf_size = libc::getfsstat(ptr::null_mut(), 0, libc::MNT_NOWAIT);
-    }
+    let buf_size = unsafe { libc::getfsstat(ptr::null_mut(), 0, libc::MNT_NOWAIT) };
 
     if buf_size < 0 {
         return Err(std::io::Error::last_os_error()).context("getfsstat failed");
@@ -178,7 +173,7 @@ pub fn monitor_devices(tx: flume::Sender<StorageEvent>) -> anyhow::Result<()> {
 mod callbacks {
     use std::{ffi::c_void, ptr::NonNull};
 
-    use objc2_core_foundation::{CFArray, CFDictionary, CFString};
+    use objc2_core_foundation::{CFArray, CFDictionary, CFRunLoop, CFString};
     use objc2_disk_arbitration::DADisk;
 
     use crate::StorageEvent;
@@ -191,13 +186,19 @@ mod callbacks {
 
         let disk_desc: &CFDictionary<CFString> = unsafe { disk_desc.cast_unchecked() };
 
-        let context = &mut *(context as *mut super::CallbackContext);
+        let context = unsafe { &mut *(context as *mut super::CallbackContext) };
 
         let volume = super::get_volume_info(&disk_desc);
         let device = super::get_device_info(&disk_desc);
 
-        let _ = context.tx.send(StorageEvent::AddDevice { device });
-        let _ = context.tx.send(StorageEvent::AddVolume { volume });
+        let active = context.tx.send(StorageEvent::AddDevice { device }).is_ok();
+        let active = active && context.tx.send(StorageEvent::AddVolume { volume }).is_ok();
+
+        if !active {
+            if let Some(run_loop) = CFRunLoop::current() {
+                run_loop.stop();
+            }
+        }
     }
 
     pub unsafe extern "C-unwind" fn disk_changed(
@@ -212,13 +213,19 @@ mod callbacks {
 
         let disk_desc: &CFDictionary<CFString> = unsafe { disk_desc.cast_unchecked() };
 
-        let context = &mut *(context as *mut super::CallbackContext);
+        let context = unsafe { &mut *(context as *mut super::CallbackContext) };
 
         let volume = super::get_volume_info(&disk_desc);
         let device = super::get_device_info(&disk_desc);
 
-        let _ = context.tx.send(StorageEvent::AddDevice { device });
-        let _ = context.tx.send(StorageEvent::AddVolume { volume });
+        let active = context.tx.send(StorageEvent::AddDevice { device }).is_ok();
+        let active = active && context.tx.send(StorageEvent::AddVolume { volume }).is_ok();
+
+        if !active {
+            if let Some(run_loop) = CFRunLoop::current() {
+                run_loop.stop();
+            }
+        }
     }
 
     pub unsafe extern "C-unwind" fn disk_disappeared(disk: NonNull<DADisk>, context: *mut c_void) {
@@ -229,18 +236,25 @@ mod callbacks {
 
         let disk_desc: &CFDictionary<CFString> = unsafe { disk_desc.cast_unchecked() };
 
-        let context = &mut *(context as *mut super::CallbackContext);
+        let context = unsafe { &mut *(context as *mut super::CallbackContext) };
 
         // Get IDs before the device is fully removed
         let volume_id = super::get_volume_info(&disk_desc).id;
         let device_id = super::get_device_info(&disk_desc).id;
 
+        let mut active = true;
         if let Some(id) = volume_id {
-            let _ = context.tx.send(StorageEvent::RemoveVolume { id });
+            active = active && context.tx.send(StorageEvent::RemoveVolume { id }).is_ok();
         }
 
         if let Some(id) = device_id {
-            let _ = context.tx.send(StorageEvent::RemoveDevice { id });
+            active = active && context.tx.send(StorageEvent::RemoveDevice { id }).is_ok();
+        }
+
+        if !active {
+            if let Some(run_loop) = CFRunLoop::current() {
+                run_loop.stop();
+            }
         }
     }
 }

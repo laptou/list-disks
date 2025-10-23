@@ -1,0 +1,18 @@
+[package]
+name = "list-disks"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+derive_more = { version = "2.0.1", features = ["from"] }
+flume = "0.11.1"
+libc = "0.2.177"
+tokio = { version = "1.40", features = ["full"] }
+tracing = "0.1.41"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6.3", features = ["disable-encoding-assertions"] }
+objc2-disk-arbitration = "0.3.2"
+objc2-io-kit = "0.3.2"
+objc2-core-foundation = "0.3.2"

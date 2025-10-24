@@ -6,7 +6,7 @@ mod fs;
 
 pub use fs::*;
 
-#[derive(Clone, Debug, Hash, Eq, From)]
+#[derive(Clone, Debug, Hash, Eq, Ord, PartialOrd, From)]
 pub struct DeviceId(pub(crate) String);
 
 impl PartialEq for DeviceId {
@@ -83,7 +83,7 @@ pub struct StorageDevice {
     pub volumes: HashSet<VolumeId>,
 }
 
-#[derive(Clone, Debug, Hash, Eq, From)]
+#[derive(Clone, Debug, Hash, Eq, Ord, PartialOrd, From)]
 pub struct VolumeId(pub(crate) String);
 
 impl PartialEq for VolumeId {

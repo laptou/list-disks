@@ -96,6 +96,7 @@ pub fn get_devices() -> anyhow::Result<(Vec<StorageDevice>, Vec<StorageVolume>)>
         };
 
         let disk_desc: &CFDictionary<CFString> = unsafe { disk_desc.cast_unchecked() };
+        trace!("disk description: {:?}", disk_desc);
 
         // Get volume info
         let volume = get_volume_info(disk_desc);

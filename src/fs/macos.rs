@@ -316,8 +316,8 @@ fn get_volume_info(disk_desc: &CFDictionary<CFString>) -> StorageVolume {
     // Get the device ID from the device path
     let volume_path = {
         let volume_path =
-            unsafe { get_from_dict::<CFString>(disk_desc, kDADiskDescriptionVolumePathKey) };
-        volume_path.map(|path| path.to_string())
+            unsafe { get_from_dict::<CFURL>(disk_desc, kDADiskDescriptionVolumePathKey) };
+        volume_path.and_then(|path| path.to_file_path())
     };
 
     let display_name =
@@ -334,7 +334,7 @@ fn get_volume_info(disk_desc: &CFDictionary<CFString>) -> StorageVolume {
         display_name,
         size,
         free,
-        path: volume_path.clone().map(PathBuf::from),
+        path: volume_path,
         mounts: mount_path.into_iter().collect(),
         partition_id: None, // Could potentially get from BSD name
         is_writable: media_writable,

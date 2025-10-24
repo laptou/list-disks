@@ -88,6 +88,8 @@ pub fn get_devices() -> anyhow::Result<(Vec<StorageDevice>, Vec<StorageVolume>)>
         // Get disk description
         let disk_desc = unsafe { disk.description() };
 
+        trace!("disk description: {:?}", disk_desc);
+
         let Some(disk_desc) = disk_desc else {
             trace!("could not get disk description for {:?}", dev_name);
             continue;
@@ -311,6 +313,13 @@ fn get_volume_info(disk_desc: &CFDictionary<CFString>) -> StorageVolume {
         device_path.map(|path| path.to_string())
     };
 
+    // Get the device ID from the device path
+    let volume_path = {
+        let volume_path =
+            unsafe { get_from_dict::<CFString>(disk_desc, kDADiskDescriptionVolumePathKey) };
+        volume_path.map(|path| path.to_string())
+    };
+
     let display_name =
         unsafe { get_from_dict::<CFString>(disk_desc, kDADiskDescriptionVolumeNameKey) };
     let display_name = display_name.map(|name| name.to_string());
@@ -325,7 +334,7 @@ fn get_volume_info(disk_desc: &CFDictionary<CFString>) -> StorageVolume {
         display_name,
         size,
         free,
-        path: device_path.clone().map(PathBuf::from),
+        path: volume_path.clone().map(PathBuf::from),
         mounts: mount_path.into_iter().collect(),
         partition_id: None, // Could potentially get from BSD name
         is_writable: media_writable,

@@ -88,7 +88,7 @@ pub fn get_devices() -> anyhow::Result<(Vec<StorageDevice>, Vec<StorageVolume>)>
         // Get disk description
         let disk_desc = unsafe { disk.description() };
 
-        trace!("disk description: {:?}", disk_desc);
+        // trace!("disk description: {:?}", disk_desc);
 
         let Some(disk_desc) = disk_desc else {
             trace!("could not get disk description for {:?}", dev_name);
